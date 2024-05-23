@@ -9,6 +9,7 @@ psycopg = "*"
 python-decouple = "*"
 djangorestframework = "*"
 markdown = "*"
+black = "*"
 
 [dev-packages]
 

@@ -11,9 +11,9 @@ class DynamicModelFieldSerializer(serializers.ModelSerializer):
 
 class DynamicModelFieldAlterationSerializer(serializers.Serializer):
     ACTION_CHOICES = (
-        ('create', 'Create'),
-        ('update', 'Update'),
-        ('delete', 'Delete'),
+        ("create", "Create"),
+        ("update", "Update"),
+        ("delete", "Delete"),
     )
 
     id = serializers.IntegerField(required=False)
@@ -24,12 +24,11 @@ class DynamicModelFieldAlterationSerializer(serializers.Serializer):
     action = serializers.ChoiceField(required=True, choices=ACTION_CHOICES)
 
     def validate(self, attrs):
-        if (attrs['action'] == 'delete' or attrs['action'] == 'update') and attrs.get('id', None) is None:
-            raise serializers.ValidationError('Id is required for update or delete')
-        if attrs['action'] == 'create' and (attrs.get('name', None) is None or attrs.get('type', None)):
-            raise serializers.ValidationError('Name is required for create')
+        if (attrs["action"] == "delete" or attrs["action"] == "update") and attrs.get("id", None) is None:
+            raise serializers.ValidationError("Id is required for update or delete")
+        if attrs["action"] == "create" and (attrs.get("name", None) is None or attrs.get("type", None)):
+            raise serializers.ValidationError("Name is required for create")
         return attrs
-
 
 
 class DynamicModelSerializer(serializers.ModelSerializer):
@@ -40,7 +39,7 @@ class DynamicModelSerializer(serializers.ModelSerializer):
         fields = ("id", "name", "fields")
 
     def create(self, validated_data):
-        fields_data = validated_data.pop('fields', [])
+        fields_data = validated_data.pop("fields", [])
 
         instance = DynamicModel.objects.create(**validated_data)
 

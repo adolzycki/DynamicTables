@@ -4,11 +4,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from tables.helpers import construct_dynamic_model, construct_dynamic_serializer, \
-    construct_field
+from tables.helpers import construct_dynamic_model, construct_dynamic_serializer, construct_field
 from tables.models import DynamicModel, DynamicModelField
-from tables.serializers import DynamicModelSerializer, DynamicModelFieldSerializer, \
-    DynamicModelFieldAlterationSerializer
+from tables.serializers import (
+    DynamicModelSerializer,
+    DynamicModelFieldSerializer,
+    DynamicModelFieldAlterationSerializer,
+)
 
 
 class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
@@ -25,7 +27,7 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
     def get_data(self, request, *args, **kwargs):
         object = self.get_object()
         Dynamic = construct_dynamic_model(object)
-        serializer_class = construct_dynamic_serializer(Dynamic, '__all__')
+        serializer_class = construct_dynamic_serializer(Dynamic, "__all__")
         serializer = serializer_class(Dynamic.objects.all(), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -33,7 +35,7 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
     def add_data(self, request, *args, **kwargs):
         object = self.get_object()
         Dynamic = construct_dynamic_model(object)
-        serializer_class = construct_dynamic_serializer(Dynamic, '__all__')
+        serializer_class = construct_dynamic_serializer(Dynamic, "__all__")
         serializer = serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         instance = Dynamic.objects.create(**serializer.validated_data)
@@ -69,4 +71,3 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
     #
     #     serializer = self.get_serializer(object)
     #     return Response(serializer.data, status=status.HTTP_200_OK)
-

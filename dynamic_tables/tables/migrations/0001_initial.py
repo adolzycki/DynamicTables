@@ -8,26 +8,38 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='DynamicModel',
+            name="DynamicModel",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=32, unique=True)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("name", models.CharField(max_length=32, unique=True)),
             ],
         ),
         migrations.CreateModel(
-            name='DynamicModelField',
+            name="DynamicModelField",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=32, unique=True)),
-                ('type', models.CharField(choices=[('string', 'String'), ('boolean', 'Boolean'), ('number', 'Number')], max_length=32)),
-                ('allow_blank', models.BooleanField(default=False)),
-                ('allow_null', models.BooleanField(default=False)),
-                ('dynamic_model', models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='fields', to='tables.dynamicmodel')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("name", models.CharField(max_length=32, unique=True)),
+                (
+                    "type",
+                    models.CharField(
+                        choices=[("string", "String"), ("boolean", "Boolean"), ("number", "Number")], max_length=32
+                    ),
+                ),
+                ("allow_blank", models.BooleanField(default=False)),
+                ("allow_null", models.BooleanField(default=False)),
+                (
+                    "dynamic_model",
+                    models.ForeignKey(
+                        default=None,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="fields",
+                        to="tables.dynamicmodel",
+                    ),
+                ),
             ],
         ),
     ]

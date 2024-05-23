@@ -41,7 +41,7 @@ EXTERNAL_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "rest_framework"
+    "rest_framework",
 ]
 
 INSTALLED_APPS = EXTERNAL_APPS + PROJECT_APPS
