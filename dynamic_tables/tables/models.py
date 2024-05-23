@@ -4,6 +4,9 @@ from django.db import models
 class DynamicModel(models.Model):
     name = models.CharField(max_length=32, unique=True)
 
+    def __str__(self):
+        return f"{self.name}"
+
 
 class DynamicModelField(models.Model):
     class DynamicModelFieldType(models.TextChoices):
@@ -16,3 +19,6 @@ class DynamicModelField(models.Model):
     type = models.CharField(max_length=32, choices=DynamicModelFieldType.choices)
     allow_blank = models.BooleanField(default=False)
     allow_null = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.dynamic_model.name} - {self.name} - {self.type}"
