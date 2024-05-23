@@ -25,8 +25,8 @@ class DynamicModelFieldAlterationSerializer(serializers.Serializer):
     def validate(self, attrs):
         if (attrs["action"] == "delete" or attrs["action"] == "update") and attrs.get("id", None) is None:
             raise serializers.ValidationError("Id is required for update or delete")
-        if attrs["action"] == "create" and (attrs.get("name", None) is None or attrs.get("type", None)):
-            raise serializers.ValidationError("Name is required for create")
+        if attrs["action"] == "create" and (attrs.get("name", None) is None or attrs.get("type", None) is None):
+            raise serializers.ValidationError("Name and type is required for create")
         return attrs
 
 

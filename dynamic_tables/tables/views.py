@@ -41,32 +41,46 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         serializer = serializer_class(instance)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    # @action(methods=["PUT"], detail=True, url_path="edit")
-    # def update_scheme(self, request, *args, **kwargs):
-    #     object = self.get_object()
-    #     serializer = DynamicModelFieldAlterationSerializer(data=request.data)
-    #     serializer.is_valid(raise_exception=True)
-    #     Dynamic = construct_dynamic_model(object)
-    #     field_action = serializer.validated_data.pop('action')
-    #     field_pk = serializer.validated_data.get('id', None)
-    #     if field_action in ['update', 'delete'] and not object.fields.filter(pk=field_pk).exists():
-    #         raise serializers.ValidationError("Field with this id does not exists for this model.")
-    #     with connection.schema_editor() as schema_editor:
-    #         with transaction.atomic():
-    #             if field_action == 'create':
-    #                 dynamic_model_field = DynamicModelField.objects.create(dynamic_model=object, **serializer.validated_data)
-    #                 schema_editor.add_field(Dynamic, Dynamic._meta.get_field(dynamic_model_field.name))
-    #             elif field_action == 'update':
-    #                 edited_model_field = DynamicModelField.objects.get(pk=field_pk)
-    #                 DynamicModelField.objects.filters(pk=field_pk).update(**serializer.validated_data)
-    #                 new_model_field = DynamicModelField.objects.get(pk=field_pk)
-    #                 new_object = self.get_object()
-    #                 NewDynamic = construct_dynamic_model(new_object)
-    #                 schema_editor.alter_field(Dynamic, Dynamic._meta.get_field(edited_model_field.name), NewDynamic._meta.get_field(new_model_field.name))
-    #             else:
-    #                 dynamic_model_field = DynamicModelField.objects.get(pk=field_pk)
-    #                 schema_editor.remove_field(Dynamic, Dynamic._meta.get_field(dynamic_model_field.name))
-    #                 DynamicModelField.objects.get(pk=field_pk).delete()
-    #
-    #     serializer = self.get_serializer(object)
-    #     return Response(serializer.data, status=status.HTTP_200_OK)
+    @action(methods=["PUT"], detail=True, url_path="edit")
+    def update_scheme(self, request, *args, **kwargs):
+        object = self.get_object()
+        serializer = DynamicModelFieldAlterationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        Dynamic = construct_dynamic_model(object)
+        field_action = serializer.validated_data.pop("action")
+        field_name = serializer.validated_data.pop("name", None)
+        field_pk = serializer.validated_data.get("id", None)
+        if field_action in ["update", "delete"] and not object.fields.filter(pk=field_pk).exists():
+            raise serializers.ValidationError("Field with this id does not exists for this model.")
+        if (
+            field_action in ["create", "update"]
+            and DynamicModelField.objects.filter(dynamic_model=object, name=field_name).exists()
+        ):
+            raise serializers.ValidationError("Field with this name already exists in this model.")
+        with connection.schema_editor() as schema_editor:
+            with transaction.atomic():
+                if field_action == "create":
+                    dynamic_model_field = DynamicModelField.objects.create(
+                        dynamic_model=object, **serializer.validated_data
+                    )
+                    NewDynamic = construct_dynamic_model(object)
+                    schema_editor.add_field(NewDynamic, NewDynamic._meta.get_field(dynamic_model_field.name))
+                elif field_action == "update":
+                    edited_model_field = DynamicModelField.objects.get(pk=field_pk)
+                    new_model_field = DynamicModelField.objects.get(pk=field_pk)
+                    new_model_field.name = field_name
+                    new_model_field.save()
+                    new_object = self.get_object()
+                    NewDynamic = construct_dynamic_model(new_object)
+                    schema_editor.alter_field(
+                        Dynamic,
+                        Dynamic._meta.get_field(edited_model_field.name),
+                        NewDynamic._meta.get_field(new_model_field.name),
+                    )
+                else:
+                    dynamic_model_field = DynamicModelField.objects.get(pk=field_pk)
+                    schema_editor.remove_field(Dynamic, Dynamic._meta.get_field(dynamic_model_field.name))
+                    DynamicModelField.objects.get(pk=field_pk).delete()
+
+        serializer = self.get_serializer(object)
+        return Response(serializer.data, status=status.HTTP_200_OK)
