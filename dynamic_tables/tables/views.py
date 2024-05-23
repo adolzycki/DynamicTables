@@ -1,15 +1,14 @@
 from django.db import connection, transaction
-from rest_framework import status, mixins, serializers
+from rest_framework import mixins, serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
-
 from tables.helpers import construct_dynamic_model, construct_dynamic_serializer, construct_field
 from tables.models import DynamicModel, DynamicModelField
 from tables.serializers import (
-    DynamicModelSerializer,
-    DynamicModelFieldSerializer,
     DynamicModelFieldAlterationSerializer,
+    DynamicModelFieldSerializer,
+    DynamicModelSerializer,
 )
 
 
