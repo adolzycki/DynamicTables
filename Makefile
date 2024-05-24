@@ -18,5 +18,8 @@ check-for-unapplied-migrations:
 makemigrations:
 	docker-compose run --rm backend-tables python manage.py makemigrations
 
+docker-build:
+	docker-compose build
+
 docker-run:
 	docker-compose up
