@@ -1,3 +1,4 @@
+from django.apps import apps
 from django.db import connection, transaction
 from rest_framework import mixins, serializers, status
 from rest_framework.decorators import action
@@ -21,11 +22,12 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         Dynamic = construct_dynamic_model(instance)
         with connection.schema_editor() as schema_editor:
             schema_editor.create_model(Dynamic)
+        # django.db.utils.ProgrammingError: relation "tables_dynamicmodel" already exists
 
     @action(methods=["GET"], detail=True, url_path="rows")
     def rows(self, request, *args, **kwargs):
         object = self.get_object()
-        Dynamic = construct_dynamic_model(object)
+        Dynamic = apps.get_model("tables", object.name)
         serializer_class = construct_dynamic_serializer(Dynamic, "__all__")
         serializer = serializer_class(Dynamic.objects.all(), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -33,7 +35,7 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
     @action(methods=["POST"], detail=True, url_path="row")
     def row(self, request, *args, **kwargs):
         object = self.get_object()
-        Dynamic = construct_dynamic_model(object)
+        Dynamic = apps.get_model("tables", object.name)
         serializer_class = construct_dynamic_serializer(Dynamic, "__all__")
         serializer = serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -46,7 +48,7 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         object = self.get_object()
         serializer = DynamicModelFieldAlterationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        Dynamic = construct_dynamic_model(object)
+        CurrentDynamicModel = apps.get_model("tables", object.name)
         field_action = serializer.validated_data.pop("action")
         field_name = serializer.validated_data.pop("name", None)
         field_pk = serializer.validated_data.get("id", None)
@@ -66,20 +68,21 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
                     NewDynamic = construct_dynamic_model(object)
                     schema_editor.add_field(NewDynamic, NewDynamic._meta.get_field(dynamic_model_field.name))
                 elif field_action == "update":
-                    edited_model_field = DynamicModelField.objects.get(pk=field_pk)
-                    new_model_field = DynamicModelField.objects.get(pk=field_pk)
-                    new_model_field.name = field_name
-                    new_model_field.save()
-                    new_object = self.get_object()
-                    NewDynamic = construct_dynamic_model(new_object)
+                    dynamic_model_field = DynamicModelField.objects.get(pk=field_pk)
+                    current_field_name = dynamic_model_field.name
+                    dynamic_model_field.name = field_name
+                    dynamic_model_field.save()
+                    NewDynamic = construct_dynamic_model(self.get_object())
                     schema_editor.alter_field(
-                        Dynamic,
-                        Dynamic._meta.get_field(edited_model_field.name),
-                        NewDynamic._meta.get_field(new_model_field.name),
+                        CurrentDynamicModel,
+                        CurrentDynamicModel._meta.get_field(current_field_name),
+                        NewDynamic._meta.get_field(field_name),
                     )
                 else:
                     dynamic_model_field = DynamicModelField.objects.get(pk=field_pk)
-                    schema_editor.remove_field(Dynamic, Dynamic._meta.get_field(dynamic_model_field.name))
+                    schema_editor.remove_field(
+                        CurrentDynamicModel, CurrentDynamicModel._meta.get_field(dynamic_model_field.name)
+                    )
                     DynamicModelField.objects.get(pk=field_pk).delete()
 
         serializer = self.get_serializer(object)

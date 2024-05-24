@@ -1,8 +1,18 @@
+from django.core.validators import RegexValidator
 from django.db import models
 
 
 class DynamicModel(models.Model):
-    name = models.CharField(max_length=32, unique=True)
+    name = models.CharField(
+        max_length=32,
+        unique=True,
+        validators=[
+            RegexValidator(
+                regex=r"^[a-zA-Z]+$",
+                message="Only letters are allowed.",
+            )
+        ],
+    )
 
     def __str__(self):
         return f"{self.name}"
