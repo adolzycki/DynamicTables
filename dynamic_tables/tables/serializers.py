@@ -27,6 +27,10 @@ class DynamicModelFieldAlterationSerializer(serializers.Serializer):
             raise serializers.ValidationError("Id is required for update or delete")
         if attrs["action"] == "create" and (attrs.get("name", None) is None or attrs.get("type", None) is None):
             raise serializers.ValidationError("Name and type is required for create")
+        if attrs["action"] == "create" and not attrs.get("allow_null", None):
+            raise serializers.ValidationError("While adding new columns, allow_null is required to be True")
+        if attrs["action"] == "update" and attrs.get("type", None) is not None:
+            raise serializers.ValidationError("Type of already existing column cannot be updated")
         return attrs
 
 

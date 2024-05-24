@@ -1,5 +1,4 @@
 import json
-from threading import Thread
 
 from django.apps import apps
 from django.db import connection, models
@@ -45,6 +44,47 @@ class DynamicModelViewTestCase(APITestCase):
         with connection.schema_editor() as schema_editor:
             schema_editor.create_model(CustomModel)
         return dynamic_model, field_1, field_2, field_3, CustomModel
+
+    def _create_dynamic_model_in_chain(self):
+        data = {
+            "name": "Test",
+            "fields": [
+                {"name": "field_1", "type": "boolean"},
+                {"name": "field_2", "type": "string"},
+                {"name": "field_3", "type": "number"},
+            ],
+        }
+        response = self.client.post(self.urls["create_table"], data=json.dumps(data), content_type="application/json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        return response.json()["id"]
+
+    def _add_data_in_chain(self, created_instance_pk):
+        for i in range(10):
+            data = {
+                "field_1": False,
+                "field_2": f"Test{i}",
+                "field_3": i,
+            }
+            self.client.post(reverse("api:table-row", (created_instance_pk,)), data)
+
+    def _edit_field_name_in_chain(self, created_instance_pk, field_id):
+        data = {
+            "id": field_id,
+            "action": "update",
+            "name": "name_3",
+        }
+        self.client.put(reverse("api:table-edit", (created_instance_pk,)), data)
+
+    def _delete_field_in_chain(self, created_instance_pk, field_id):
+        data = {
+            "id": field_id,
+            "action": "delete",
+        }
+        self.client.put(reverse("api:table-edit", (created_instance_pk,)), data)
+
+    def _add_field_in_chain(self, created_instance_pk):
+        data = {"action": "create", "name": "field_4", "type": "string", "allow_null": True}
+        self.client.put(reverse("api:table-edit", (created_instance_pk,)), data)
 
     def test_create_success(self):
         self.assertEqual(DynamicModel.objects.count(), 1)
@@ -225,6 +265,16 @@ class DynamicModelViewTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.json()["non_field_errors"][0], "Id is required for update or delete")
 
+    def test_edit_field_type(self):
+        data = {
+            "id": self.field_3.id,
+            "action": "update",
+            "type": "boolean",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["non_field_errors"][0], "Type of already existing column cannot be updated")
+
     def test_field_name_incorrect_id_on_delete(self):
         _, field_1, _, _, _ = self._construct_model("DynamicModel3")
         data = {
@@ -275,12 +325,7 @@ class DynamicModelViewTestCase(APITestCase):
         self.assertEqual(response.json()["non_field_errors"][0], "Name and type is required for create")
 
     def test_create_field_string(self):
-        data = {
-            "id": 1,
-            "action": "create",
-            "type": "string",
-            "name": "Test_1",
-        }
+        data = {"id": 1, "action": "create", "type": "string", "name": "Test_1", "allow_null": True}
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         DynamicModel = construct_dynamic_model(self.dynamic_model)
@@ -291,12 +336,7 @@ class DynamicModelViewTestCase(APITestCase):
         self.assertEqual(instance_new.Test_1, "New_name")
 
     def test_create_field_number(self):
-        data = {
-            "id": 1,
-            "action": "create",
-            "type": "number",
-            "name": "Test_1",
-        }
+        data = {"id": 1, "action": "create", "type": "number", "name": "Test_1", "allow_null": True}
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         DynamicModel = construct_dynamic_model(self.dynamic_model)
@@ -307,6 +347,12 @@ class DynamicModelViewTestCase(APITestCase):
         self.assertEqual(instance_new.Test_1, 32.0)
 
     def test_create_field_already_exists(self):
+        data = {"id": 1, "action": "create", "type": "boolean", "name": self.field_3.name, "allow_null": True}
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()[0], "Field with this name already exists in this model.")
+
+    def test_create_field_without_allow_null(self):
         data = {
             "id": 1,
             "action": "create",
@@ -315,4 +361,61 @@ class DynamicModelViewTestCase(APITestCase):
         }
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.json()[0], "Field with this name already exists in this model.")
+        self.assertEqual(
+            response.json()["non_field_errors"][0], "While adding new columns, allow_null is required to be True"
+        )
+
+    def test_create_field_without_allow_false(self):
+        data = {"id": 1, "action": "create", "type": "boolean", "name": self.field_3.name, "allow_null": False}
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.json()["non_field_errors"][0], "While adding new columns, allow_null is required to be True"
+        )
+
+    def test_chain_actions_create_and_get(self):
+        created_instance_pk = self._create_dynamic_model_in_chain()
+        self._add_data_in_chain(created_instance_pk)
+        response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = response.json()
+        self.assertEqual(len(rows), 10)
+        for i, row in enumerate(rows):
+            self.assertEqual(row["field_1"], False)
+            self.assertEqual(row["field_2"], f"Test{i}")
+            self.assertEqual(row["field_3"], i)
+
+    def test_chain_actions_create_and_get_empty(self):
+        created_instance_pk = self._create_dynamic_model_in_chain()
+        response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json(), [])
+
+    def test_chain_actions_create_add_edit_and_get(self):
+        created_instance_pk = self._create_dynamic_model_in_chain()
+        self._add_data_in_chain(created_instance_pk)
+        field = DynamicModel.objects.get(pk=created_instance_pk).fields.first()
+        self._edit_field_name_in_chain(created_instance_pk, field.pk)
+        self._add_data_in_chain(created_instance_pk)
+        response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 20)
+
+    def test_chain_actions_create_add_delete_and_get(self):
+        created_instance_pk = self._create_dynamic_model_in_chain()
+        self._add_data_in_chain(created_instance_pk)
+        field = DynamicModel.objects.get(pk=created_instance_pk).fields.first()
+        self._delete_field_in_chain(created_instance_pk, field.pk)
+        self._add_data_in_chain(created_instance_pk)
+        response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 20)
+
+    def test_chain_actions_create_add_modify_and_get(self):
+        created_instance_pk = self._create_dynamic_model_in_chain()
+        self._add_data_in_chain(created_instance_pk)
+        self._add_field_in_chain(created_instance_pk)
+        self._add_data_in_chain(created_instance_pk)
+        response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 20)
