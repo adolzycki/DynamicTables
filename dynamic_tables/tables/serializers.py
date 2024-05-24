@@ -39,10 +39,13 @@ class DynamicModelSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         fields_data = validated_data.pop("fields", [])
-
         instance = DynamicModel.objects.create(**validated_data)
-
         for field_data in fields_data:
             DynamicModelField.objects.create(dynamic_model=instance, **field_data)
-
         return instance
+
+    def validate(self, attrs):
+        names = [field["name"] for field in attrs["fields"]]
+        if len(names) != len(set(names)):
+            raise serializers.ValidationError("Field names must be unique.")
+        return attrs

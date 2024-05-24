@@ -23,7 +23,7 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
             schema_editor.create_model(Dynamic)
 
     @action(methods=["GET"], detail=True, url_path="rows")
-    def get_data(self, request, *args, **kwargs):
+    def rows(self, request, *args, **kwargs):
         object = self.get_object()
         Dynamic = construct_dynamic_model(object)
         serializer_class = construct_dynamic_serializer(Dynamic, "__all__")
@@ -31,7 +31,7 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(methods=["POST"], detail=True, url_path="row")
-    def add_data(self, request, *args, **kwargs):
+    def row(self, request, *args, **kwargs):
         object = self.get_object()
         Dynamic = construct_dynamic_model(object)
         serializer_class = construct_dynamic_serializer(Dynamic, "__all__")
@@ -42,7 +42,7 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(methods=["PUT"], detail=True, url_path="edit")
-    def update_scheme(self, request, *args, **kwargs):
+    def edit(self, request, *args, **kwargs):
         object = self.get_object()
         serializer = DynamicModelFieldAlterationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

@@ -14,8 +14,11 @@ class DynamicModelField(models.Model):
         BOOLEAN = "boolean", "Boolean"
         NUMBER = "number", "Number"
 
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["dynamic_model", "name"], name="unique_dynamic_model_name")]
+
     dynamic_model = models.ForeignKey(DynamicModel, on_delete=models.CASCADE, related_name="fields", default=None)
-    name = models.CharField(max_length=32, unique=True)
+    name = models.CharField(max_length=32)
     type = models.CharField(max_length=32, choices=DynamicModelFieldType.choices)
     allow_blank = models.BooleanField(default=True)
     allow_null = models.BooleanField(default=True)
