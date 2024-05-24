@@ -17,18 +17,17 @@ class DynamicModelFieldAlterationSerializer(serializers.Serializer):
     action = serializers.ChoiceField(required=True, choices=ActionTypeE.choices())
 
     def validate(self, attrs):
-        print(attrs)
         dynamic_model_instance = self.context["instance"]
-        if (attrs["action"] == ActionTypeE.DELETE.value or attrs["action"] == ActionTypeE.UPDATE.value) and attrs.get(
-            "id", None
-        ) is None:
+        if attrs["action"] in [ActionTypeE.DELETE.value, ActionTypeE.UPDATE.value] and attrs.get("id", None) is None:
             raise serializers.ValidationError("Id is required for update or delete")
         if attrs["action"] == ActionTypeE.CREATE.value and (
             attrs.get("name", None) is None or attrs.get("type", None) is None
         ):
             raise serializers.ValidationError("Name and type is required for create")
-        if attrs["action"] == ActionTypeE.CREATE.value and not attrs.get("allow_null", None):
-            raise serializers.ValidationError("While adding new columns, allow_null is required to be True")
+        if attrs["action"] in [ActionTypeE.CREATE.value, ActionTypeE.UPDATE.value] and not attrs.get(
+            "allow_null", None
+        ):
+            raise serializers.ValidationError("While adding or modifying columns, allow_null is required to be True")
         if attrs["action"] == ActionTypeE.UPDATE.value and attrs.get("type", None) is not None:
             raise serializers.ValidationError("Type of already existing column cannot be updated")
         if (

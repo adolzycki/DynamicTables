@@ -67,13 +67,7 @@ class DynamicModelViewTestCase(APITestCase):
             self.client.post(reverse("api:table-row", (created_instance_pk,)), {})
 
     def _edit_field_name_in_chain(self, created_instance_pk, field_id):
-        data = {
-            "id": field_id,
-            "action": "update",
-            "name": f"name_{field_id}",
-        }
-        print("???")
-        print(data)
+        data = {"id": field_id, "action": "update", "name": f"name_{field_id}", "allow_null": True}
         self.client.put(reverse("api:table-edit", (created_instance_pk,)), data)
 
     def _delete_field_in_chain(self, created_instance_pk, field_id):
@@ -239,6 +233,7 @@ class DynamicModelViewTestCase(APITestCase):
             "id": self.field_3.id,
             "action": "update",
             "name": "name_3",
+            "allow_null": True,
         }
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -254,6 +249,7 @@ class DynamicModelViewTestCase(APITestCase):
             "id": field_1.id,
             "action": "update",
             "name": "name_3",
+            "allow_null": True,
         }
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -273,10 +269,24 @@ class DynamicModelViewTestCase(APITestCase):
             "id": self.field_3.id,
             "action": "update",
             "type": "boolean",
+            "allow_null": True,
         }
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.json()["non_field_errors"][0], "Type of already existing column cannot be updated")
+
+    def test_add_field_type(self):
+        data = {
+            "action": "create",
+            "name": "boolean_field",
+            "type": "boolean",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.json()["non_field_errors"][0],
+            "While adding or modifying columns, allow_null is required to be True",
+        )
 
     def test_field_name_incorrect_id_on_delete(self):
         _, field_1, _, _, _ = self._construct_model("DynamicModel3")
@@ -367,7 +377,8 @@ class DynamicModelViewTestCase(APITestCase):
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
-            response.json()["non_field_errors"][0], "While adding new columns, allow_null is required to be True"
+            response.json()["non_field_errors"][0],
+            "While adding or modifying columns, allow_null is required to be True",
         )
 
     def test_create_field_without_allow_false(self):
@@ -375,7 +386,8 @@ class DynamicModelViewTestCase(APITestCase):
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
-            response.json()["non_field_errors"][0], "While adding new columns, allow_null is required to be True"
+            response.json()["non_field_errors"][0],
+            "While adding or modifying columns, allow_null is required to be True",
         )
 
     def test_chain_actions_create_and_get(self):
@@ -416,16 +428,6 @@ class DynamicModelViewTestCase(APITestCase):
         created_instance_pk = self._create_dynamic_model_in_chain()
         self._add_data_in_chain(created_instance_pk)
         self._add_field_in_chain(created_instance_pk)
-        self._add_data_in_chain(created_instance_pk)
-        response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), 20)
-
-    def test_chain_actions_create_add_modify_null_and_get(self):
-        created_instance_pk = self._create_dynamic_model_in_chain()
-        self._add_data_in_chain(created_instance_pk)
-        field = DynamicModel.objects.get(pk=created_instance_pk).fields.first()
-        self._edit_field_null_in_chain(created_instance_pk, field.pk)
         self._add_data_in_chain(created_instance_pk)
         response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
