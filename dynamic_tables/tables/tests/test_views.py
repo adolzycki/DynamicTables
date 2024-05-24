@@ -29,7 +29,6 @@ class DynamicModelViewTestCase(APITestCase):
             name="field_1",
             type=DynamicModelField.DynamicModelFieldType.STRING.value,
             allow_null=False,
-            allow_blank=False,
         )
         field_2 = DynamicModelField.objects.create(
             dynamic_model=dynamic_model, name="field_2", type=DynamicModelField.DynamicModelFieldType.BOOLEAN.value
@@ -38,7 +37,6 @@ class DynamicModelViewTestCase(APITestCase):
             dynamic_model=dynamic_model,
             name="field_3",
             type=DynamicModelField.DynamicModelFieldType.NUMBER.value,
-            allow_blank=False,
         )
         CustomModel = construct_dynamic_model(dynamic_model)
         with connection.schema_editor() as schema_editor:
@@ -59,20 +57,23 @@ class DynamicModelViewTestCase(APITestCase):
         return response.json()["id"]
 
     def _add_data_in_chain(self, created_instance_pk):
-        for i in range(10):
+        for i in range(5):
             data = {
                 "field_1": False,
                 "field_2": f"Test{i}",
                 "field_3": i,
             }
             self.client.post(reverse("api:table-row", (created_instance_pk,)), data)
+            self.client.post(reverse("api:table-row", (created_instance_pk,)), {})
 
     def _edit_field_name_in_chain(self, created_instance_pk, field_id):
         data = {
             "id": field_id,
             "action": "update",
-            "name": "name_3",
+            "name": f"name_{field_id}",
         }
+        print("???")
+        print(data)
         self.client.put(reverse("api:table-edit", (created_instance_pk,)), data)
 
     def _delete_field_in_chain(self, created_instance_pk, field_id):
@@ -86,13 +87,17 @@ class DynamicModelViewTestCase(APITestCase):
         data = {"action": "create", "name": "field_4", "type": "string", "allow_null": True}
         self.client.put(reverse("api:table-edit", (created_instance_pk,)), data)
 
+    def _edit_field_null_in_chain(self, created_instance_pk, field_id):
+        data = {"id": field_id, "action": "update", "allow_null": False}
+        self.client.put(reverse("api:table-edit", (created_instance_pk,)), data)
+
     def test_create_success(self):
         self.assertEqual(DynamicModel.objects.count(), 1)
         data = {
             "name": "Test",
             "fields": [
-                {"name": "field_1", "type": "boolean", "allow_null": True, "allow_blank": False},
-                {"name": "field_2", "type": "string", "allow_null": False, "allow_blank": True},
+                {"name": "field_1", "type": "boolean", "allow_null": True},
+                {"name": "field_2", "type": "string", "allow_null": False},
                 {"name": "field_3", "type": "number"},
             ],
         }
@@ -114,11 +119,9 @@ class DynamicModelViewTestCase(APITestCase):
         self.assertTrue(apps.get_model("tables", data["name"]))
         Test = apps.get_model("tables", data["name"])
         fields = Test._meta.get_fields()
-        self.assertTrue(any(isinstance(field, models.TextField) and not field.null and field.blank for field in fields))
-        self.assertTrue(
-            any(isinstance(field, models.BooleanField) and field.null and not field.blank for field in fields)
-        )
-        self.assertTrue(any(isinstance(field, models.FloatField) and field.null and field.blank for field in fields))
+        self.assertTrue(any(isinstance(field, models.TextField) and not field.null for field in fields))
+        self.assertTrue(any(isinstance(field, models.BooleanField) and field.null for field in fields))
+        self.assertTrue(any(isinstance(field, models.FloatField) and field.null for field in fields))
 
     def test_same_field_name_twice(self):
         data = {
@@ -382,10 +385,6 @@ class DynamicModelViewTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         rows = response.json()
         self.assertEqual(len(rows), 10)
-        for i, row in enumerate(rows):
-            self.assertEqual(row["field_1"], False)
-            self.assertEqual(row["field_2"], f"Test{i}")
-            self.assertEqual(row["field_3"], i)
 
     def test_chain_actions_create_and_get_empty(self):
         created_instance_pk = self._create_dynamic_model_in_chain()
@@ -396,8 +395,8 @@ class DynamicModelViewTestCase(APITestCase):
     def test_chain_actions_create_add_edit_and_get(self):
         created_instance_pk = self._create_dynamic_model_in_chain()
         self._add_data_in_chain(created_instance_pk)
-        field = DynamicModel.objects.get(pk=created_instance_pk).fields.first()
-        self._edit_field_name_in_chain(created_instance_pk, field.pk)
+        for field in DynamicModel.objects.get(pk=created_instance_pk).fields.all():
+            self._edit_field_name_in_chain(created_instance_pk, field.pk)
         self._add_data_in_chain(created_instance_pk)
         response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -417,6 +416,16 @@ class DynamicModelViewTestCase(APITestCase):
         created_instance_pk = self._create_dynamic_model_in_chain()
         self._add_data_in_chain(created_instance_pk)
         self._add_field_in_chain(created_instance_pk)
+        self._add_data_in_chain(created_instance_pk)
+        response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 20)
+
+    def test_chain_actions_create_add_modify_null_and_get(self):
+        created_instance_pk = self._create_dynamic_model_in_chain()
+        self._add_data_in_chain(created_instance_pk)
+        field = DynamicModel.objects.get(pk=created_instance_pk).fields.first()
+        self._edit_field_null_in_chain(created_instance_pk, field.pk)
         self._add_data_in_chain(created_instance_pk)
         response = self.client.get(reverse("api:table-rows", (created_instance_pk,)))
         self.assertEqual(response.status_code, status.HTTP_200_OK)

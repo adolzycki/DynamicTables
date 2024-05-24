@@ -28,6 +28,5 @@ class DynamicModelFieldAdmin(ReadOnlyAdmin):
         "dynamic_model",
         "name",
         "type",
-        "allow_blank",
         "allow_null",
     )

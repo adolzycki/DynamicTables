@@ -6,18 +6,18 @@ from tables.models import DynamicModel, DynamicModelField
 class DynamicModelFieldSerializer(serializers.ModelSerializer):
     class Meta:
         model = DynamicModelField
-        fields = ("id", "name", "type", "allow_blank", "allow_null")
+        fields = ("id", "name", "type", "allow_null")
 
 
 class DynamicModelFieldAlterationSerializer(serializers.Serializer):
     id = serializers.IntegerField(required=False)
     name = serializers.CharField(required=False)
     type = serializers.ChoiceField(choices=DynamicModelField.DynamicModelFieldType.choices, required=False)
-    allow_blank = serializers.BooleanField(required=False)
     allow_null = serializers.BooleanField(required=False)
     action = serializers.ChoiceField(required=True, choices=ActionTypeE.choices())
 
     def validate(self, attrs):
+        print(attrs)
         dynamic_model_instance = self.context["instance"]
         if (attrs["action"] == ActionTypeE.DELETE.value or attrs["action"] == ActionTypeE.UPDATE.value) and attrs.get(
             "id", None

@@ -47,6 +47,7 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
     @action(methods=["PUT"], detail=True, url_path="edit")
     def edit(self, request, *args, **kwargs):
         object = self.get_object()
+        print(request.data)
         serializer = DynamicModelFieldAlterationSerializer(data=request.data, context={"instance": object})
         serializer.is_valid(raise_exception=True)
         CurrentDynamicModel = construct_dynamic_model(object)
@@ -66,11 +67,15 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
                     CurrentDynamicModel, CurrentDynamicModel._meta.get_field(dynamic_model_field.name)
                 )
                 dynamic_model_field.delete()
-            elif field_action == ActionTypeE.UPDATE.value:
+            else:
                 current_field_name = dynamic_model_field.name
+                print(serializer.validated_data)
                 for key, value in serializer.validated_data.items():
+                    print(key)
+                    print(value)
                     setattr(dynamic_model_field, key, value)
                 dynamic_model_field.save()
+                print(dynamic_model_field)
                 NewDynamic = construct_dynamic_model(object)
                 schema_editor.alter_field(
                     CurrentDynamicModel,

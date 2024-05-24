@@ -12,21 +12,18 @@ class ConstructDynamicModelTestCase(TestCase):
             name="string_field",
             type=DynamicModelField.DynamicModelFieldType.STRING,
             allow_null=True,
-            allow_blank=True,
             dynamic_model=self.dynamic_model,
         )
         self.number_field = DynamicModelField.objects.create(
             name="number_field",
             type=DynamicModelField.DynamicModelFieldType.NUMBER,
             allow_null=False,
-            allow_blank=False,
             dynamic_model=self.dynamic_model,
         )
         self.boolean_field = DynamicModelField.objects.create(
             name="boolean_field",
             type=DynamicModelField.DynamicModelFieldType.BOOLEAN,
             allow_null=True,
-            allow_blank=False,
             dynamic_model=self.dynamic_model,
         )
 
@@ -49,14 +46,11 @@ class ConstructDynamicModelTestCase(TestCase):
         string_field_instance = construct_field(self.string_field)
         self.assertIsInstance(string_field_instance, models.TextField)
         self.assertTrue(string_field_instance.null)
-        self.assertTrue(string_field_instance.blank)
 
         number_field_instance = construct_field(self.number_field)
         self.assertIsInstance(number_field_instance, models.FloatField)
         self.assertFalse(number_field_instance.null)
-        self.assertFalse(number_field_instance.blank)
 
         boolean_field_instance = construct_field(self.boolean_field)
         self.assertIsInstance(boolean_field_instance, models.BooleanField)
         self.assertTrue(boolean_field_instance.null)
-        self.assertFalse(boolean_field_instance.blank)

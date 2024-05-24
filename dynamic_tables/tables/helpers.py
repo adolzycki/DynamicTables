@@ -18,8 +18,8 @@ def construct_dynamic_serializer(model, fields):
 
 def construct_field(field):
     if field.type == DynamicModelField.DynamicModelFieldType.STRING:
-        return models.TextField(null=field.allow_null, blank=field.allow_blank)
+        return models.TextField(null=field.allow_null)
     if field.type == DynamicModelField.DynamicModelFieldType.NUMBER:
-        return models.FloatField(null=field.allow_null, blank=field.allow_blank)
+        return models.FloatField(null=field.allow_null)
     if field.type == DynamicModelField.DynamicModelFieldType.BOOLEAN:
-        return models.BooleanField(null=field.allow_null, blank=field.allow_blank)
+        return models.BooleanField(null=field.allow_null)
