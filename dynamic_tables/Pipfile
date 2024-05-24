@@ -10,6 +10,8 @@ python-decouple = "*"
 djangorestframework = "*"
 markdown = "*"
 black = "*"
+django-extensions = "*"
+ipython = "*"
 
 [dev-packages]
 
