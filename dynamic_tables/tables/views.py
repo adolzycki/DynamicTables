@@ -116,33 +116,48 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         object = self.get_object()
         serializer = DynamicModelFieldAlterationSerializer(data=request.data, context={"instance": object})
         serializer.is_valid(raise_exception=True)
-        CurrentDynamicModel = construct_dynamic_model(object)
+
         field_action = serializer.validated_data.pop("action")
         field_pk = serializer.validated_data.pop("id", None)
-        field_name = serializer.validated_data.get("name", None)
-        try:
-            dynamic_model_field = DynamicModelField.objects.get(pk=field_pk)
-        except DynamicModelField.DoesNotExist:
+
+        if field_action == ActionTypeE.CREATE.value:
             dynamic_model_field = DynamicModelField.objects.create(dynamic_model=object, **serializer.validated_data)
-        with connection.schema_editor() as schema_editor:
-            if field_action == ActionTypeE.CREATE.value:
-                NewDynamic = construct_dynamic_model(object)
-                schema_editor.add_field(NewDynamic, NewDynamic._meta.get_field(dynamic_model_field.name))
-            elif field_action == ActionTypeE.DELETE.value:
-                schema_editor.remove_field(
-                    CurrentDynamicModel, CurrentDynamicModel._meta.get_field(dynamic_model_field.name)
-                )
-                dynamic_model_field.delete()
-            else:
-                current_field_name = dynamic_model_field.name
-                for key, value in serializer.validated_data.items():
-                    setattr(dynamic_model_field, key, value)
-                dynamic_model_field.save()
-                NewDynamic = construct_dynamic_model(object)
-                schema_editor.alter_field(
-                    CurrentDynamicModel,
-                    CurrentDynamicModel._meta.get_field(current_field_name),
-                    NewDynamic._meta.get_field(field_name if field_name is not None else current_field_name),
-                )
+            self.schema_editor_add_field(object, dynamic_model_field.name)
+        elif field_action == ActionTypeE.DELETE.value:
+            dynamic_model_field = DynamicModelField.objects.get(pk=field_pk)
+            self.schema_editor_remove_field(object, dynamic_model_field.name)
+            dynamic_model_field.delete()
+        else:
+            field_name = serializer.validated_data.get("name", None)
+            dynamic_model_field = DynamicModelField.objects.get(pk=field_pk)
+            dynamic_model_field_name = dynamic_model_field.name
+            CurrentDynamicModel = construct_dynamic_model(object)
+            self.update_dynamic_model_field(dynamic_model_field, serializer.validated_data)
+            self.schema_editor_alter_field(CurrentDynamicModel, dynamic_model_field_name, field_name)
+
         serializer = self.get_serializer(object)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def schema_editor_add_field(self, dynamic_model: DynamicModel, field_name: str):
+        Dynamic = construct_dynamic_model(dynamic_model)
+        with connection.schema_editor() as schema_editor:
+            schema_editor.add_field(Dynamic, Dynamic._meta.get_field(field_name))
+
+    def schema_editor_remove_field(self, dynamic_model: DynamicModel, field_name: str):
+        Dynamic = construct_dynamic_model(dynamic_model)
+        with connection.schema_editor() as schema_editor:
+            schema_editor.remove_field(Dynamic, Dynamic._meta.get_field(field_name))
+
+    def update_dynamic_model_field(self, dynamic_model_field: DynamicModelField, validated_data: dict):
+        for key, value in validated_data.items():
+            setattr(dynamic_model_field, key, value)
+        dynamic_model_field.save()
+
+    def schema_editor_alter_field(self, CurrentDynamicModel, current_field_name: str, new_field_name: str | None):
+        NewDynamic = construct_dynamic_model(self.get_object())
+        with connection.schema_editor() as schema_editor:
+            schema_editor.alter_field(
+                CurrentDynamicModel,
+                CurrentDynamicModel._meta.get_field(current_field_name),
+                NewDynamic._meta.get_field(new_field_name if new_field_name else current_field_name),
+            )

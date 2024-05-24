@@ -1,9 +1,9 @@
 from django.db import models
 from rest_framework import serializers
-from tables.models import DynamicModelField
+from tables.models import DynamicModel, DynamicModelField
 
 
-def construct_dynamic_model(dynamic_model):
+def construct_dynamic_model(dynamic_model: DynamicModel):
     attrs = {"__module__": "tables.models"}
     for field in dynamic_model.fields.all():
         attrs[field.name] = construct_field(field)
@@ -16,7 +16,7 @@ def construct_dynamic_serializer(model, fields):
     return type(f"DynamicSerializer", (serializers.ModelSerializer,), {"Meta": MetaClass})
 
 
-def construct_field(field):
+def construct_field(field: DynamicModelField):
     if field.type == DynamicModelField.DynamicModelFieldType.STRING:
         return models.TextField(null=field.allow_null)
     if field.type == DynamicModelField.DynamicModelFieldType.NUMBER:
