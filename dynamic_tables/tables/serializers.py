@@ -18,6 +18,7 @@ class DynamicModelFieldAlterationSerializer(serializers.Serializer):
     action = serializers.ChoiceField(required=True, choices=ActionTypeE.choices())
 
     def validate(self, attrs):
+        dynamic_model_instance = self.context["instance"]
         if (attrs["action"] == ActionTypeE.DELETE.value or attrs["action"] == ActionTypeE.UPDATE.value) and attrs.get(
             "id", None
         ) is None:
@@ -30,6 +31,16 @@ class DynamicModelFieldAlterationSerializer(serializers.Serializer):
             raise serializers.ValidationError("While adding new columns, allow_null is required to be True")
         if attrs["action"] == ActionTypeE.UPDATE.value and attrs.get("type", None) is not None:
             raise serializers.ValidationError("Type of already existing column cannot be updated")
+        if (
+            attrs["action"] in [ActionTypeE.UPDATE.value, ActionTypeE.DELETE.value]
+            and not dynamic_model_instance.fields.filter(pk=attrs.get("id")).exists()
+        ):
+            raise serializers.ValidationError("Field with this id does not exists for this model.")
+        if (
+            attrs["action"] in [ActionTypeE.CREATE.value, ActionTypeE.UPDATE.value]
+            and DynamicModelField.objects.filter(dynamic_model=dynamic_model_instance, name=attrs.get("name")).exists()
+        ):
+            raise serializers.ValidationError("Field with this name already exists in this model.")
         return attrs
 
 

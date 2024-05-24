@@ -254,7 +254,7 @@ class DynamicModelViewTestCase(APITestCase):
         }
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.json()[0], "Field with this id does not exists for this model.")
+        self.assertEqual(response.json()["non_field_errors"][0], "Field with this id does not exists for this model.")
 
     def test_edit_field_missing_id(self):
         data = {
@@ -284,15 +284,17 @@ class DynamicModelViewTestCase(APITestCase):
         }
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.json()[0], "Field with this id does not exists for this model.")
+        self.assertEqual(response.json()["non_field_errors"][0], "Field with this id does not exists for this model.")
 
     def test_delete_field(self):
         data = {
             "id": self.field_3.id,
             "action": "delete",
         }
+        self.assertEqual(self.dynamic_model.fields.count(), 3)
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.dynamic_model.fields.count(), 2)
         DynamicModel = construct_dynamic_model(self.dynamic_model)
         fields = DynamicModel._meta.get_fields()
         instance = DynamicModel()
@@ -350,7 +352,7 @@ class DynamicModelViewTestCase(APITestCase):
         data = {"id": 1, "action": "create", "type": "boolean", "name": self.field_3.name, "allow_null": True}
         response = self.client.put(self.urls["edit_table"], data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.json()[0], "Field with this name already exists in this model.")
+        self.assertEqual(response.json()["non_field_errors"][0], "Field with this name already exists in this model.")
 
     def test_create_field_without_allow_null(self):
         data = {
