@@ -7,8 +7,6 @@ services:
        - POSTGRES_USER=${DJANGO_DATABASE_USER}
        - POSTGRES_PASSWORD=${DJANGO_DATABASE_PASSWORD}
        - POSTGRES_DB=${DJANGO_DATABASE_NAME}
-    expose:
-      - "${DOCKER_POSTGRES_PORT}"
     restart: on-failure
     volumes:
       - postgresql_data:/var/lib/postgresql/data
