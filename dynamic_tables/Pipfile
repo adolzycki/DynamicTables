@@ -13,6 +13,7 @@ black = "*"
 django-extensions = "*"
 ipython = "*"
 coverage = "*"
+drf-yasg = "*"
 
 [dev-packages]
 

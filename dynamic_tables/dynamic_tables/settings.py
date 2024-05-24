@@ -44,6 +44,7 @@ EXTERNAL_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "django_extensions",
+    "drf_yasg",
 ]
 
 INSTALLED_APPS = EXTERNAL_APPS + PROJECT_APPS

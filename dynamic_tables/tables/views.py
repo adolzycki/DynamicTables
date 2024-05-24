@@ -1,4 +1,5 @@
 from django.db import connection, transaction
+from drf_yasg.utils import no_body, swagger_auto_schema
 from rest_framework import mixins, serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -17,6 +18,25 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
     serializer_class = DynamicModelSerializer
     queryset = DynamicModel.objects.all()
 
+    @swagger_auto_schema(
+        tags=["Tables"],
+        operation_summary="Create a new dynamic model instance.",
+        responses={
+            201: DynamicModelSerializer,
+            400: "Bad Request: Indicates one of the following issues: invalid input data, missing required fields, or other client-side errors.",
+        },
+    )
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new dynamic model instance.
+
+        This endpoint creates a new instance of the dynamic model based on the
+        provided data in the request body.
+
+        Returns serialized data of the created dynamic model instance with status 201.
+        """
+        return super().create(request, *args, **kwargs)
+
     @transaction.atomic()
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -24,16 +44,46 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         with connection.schema_editor() as schema_editor:
             schema_editor.create_model(Dynamic)
 
+    @swagger_auto_schema(
+        tags=["Tables"],
+        operation_summary="Retrieve rows for a dynamic model.",
+        responses={200: "List of rows for the dynamic model."},
+    )
     @action(methods=["GET"], detail=True, url_path="rows")
     def rows(self, request, *args, **kwargs):
+        """
+        Endpoint to retrieve rows for a dynamic model associated with this instance.
+
+        This endpoint dynamically constructs a model and serializer based on the
+        current instance's fields and serves all rows of that dynamic model.
+
+        Returns a response with status 200 and a JSON array containing serialized rows.
+        """
         object = self.get_object()
         Dynamic = construct_dynamic_model(object)
         serializer_class = construct_dynamic_serializer(Dynamic, "__all__")
         serializer = serializer_class(Dynamic.objects.all(), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @swagger_auto_schema(
+        tags=["Tables"],
+        operation_summary="Create a row for a dynamic model.",
+        request_body=no_body,
+        responses={
+            201: "Serialized data of the created row.",
+            400: "Bad Request: Indicates one of the following issues: invalid input data, missing required fields, or other client-side errors.",
+        },
+    )
     @action(methods=["POST"], detail=True, url_path="row")
     def row(self, request, *args, **kwargs):
+        """
+        Endpoint to create a row in a dynamic model associated with this instance.
+
+        This endpoint dynamically constructs a model and serializer based on the
+        current instance's fields and creates a new row using the provided data.
+
+        Returns a response with status 201 and the serialized data of the created row.
+        """
         object = self.get_object()
         Dynamic = construct_dynamic_model(object)
         serializer_class = construct_dynamic_serializer(Dynamic, "__all__")
@@ -44,8 +94,25 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @transaction.atomic()
-    @action(methods=["PUT"], detail=True, url_path="edit")
+    @swagger_auto_schema(
+        tags=["Tables"],
+        responses={
+            200: "Serialized data of the updated dynamic model instance.",
+            400: "Bad Request: Indicates one of the following issues: invalid input data, missing required fields, or other client-side errors.",
+        },
+        operation_summary="Edit dynamic model field.",
+        request_body=DynamicModelFieldAlterationSerializer(),
+    )
+    @action(methods=["PUT"], detail=False, url_path=r"(?P<pk>[^/.]+)")
     def edit(self, request, *args, **kwargs):
+        """
+        Endpoint to edit a field in a dynamic model associated with this instance.
+
+        This endpoint allows editing of fields in the dynamic model based on the
+        provided data in the request body.
+
+        Returns a response with status 200 and the serialized data of the updated dynamic model instance.
+        """
         object = self.get_object()
         serializer = DynamicModelFieldAlterationSerializer(data=request.data, context={"instance": object})
         serializer.is_valid(raise_exception=True)
