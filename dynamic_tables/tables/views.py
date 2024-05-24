@@ -3,6 +3,7 @@ from rest_framework import mixins, serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
+from tables.constants import ActionTypeE
 from tables.helpers import construct_dynamic_model, construct_dynamic_serializer, construct_field
 from tables.models import DynamicModel, DynamicModelField
 from tables.serializers import (
@@ -22,7 +23,6 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         Dynamic = construct_dynamic_model(instance)
         with connection.schema_editor() as schema_editor:
             schema_editor.create_model(Dynamic)
-        # django.db.utils.ProgrammingError: relation "tables_dynamicmodel" already exists
 
     @action(methods=["GET"], detail=True, url_path="rows")
     def rows(self, request, *args, **kwargs):
@@ -53,21 +53,24 @@ class DynamicModelView(mixins.CreateModelMixin, GenericViewSet):
         field_action = serializer.validated_data.pop("action")
         field_pk = serializer.validated_data.pop("id", None)
         field_name = serializer.validated_data.get("name", None)
-        if field_action in ["update", "delete"] and not object.fields.filter(pk=field_pk).exists():
+        if (
+            field_action in [ActionTypeE.UPDATE.value, ActionTypeE.DELETE.value]
+            and not object.fields.filter(pk=field_pk).exists()
+        ):
             raise serializers.ValidationError("Field with this id does not exists for this model.")
         if (
-            field_action in ["create", "update"]
+            field_action in [ActionTypeE.CREATE.value, ActionTypeE.UPDATE.value]
             and DynamicModelField.objects.filter(dynamic_model=object, name=field_name).exists()
         ):
             raise serializers.ValidationError("Field with this name already exists in this model.")
         with connection.schema_editor() as schema_editor:
-            if field_action == "create":
+            if field_action == ActionTypeE.CREATE.value:
                 dynamic_model_field = DynamicModelField.objects.create(
                     dynamic_model=object, **serializer.validated_data
                 )
                 NewDynamic = construct_dynamic_model(object)
                 schema_editor.add_field(NewDynamic, NewDynamic._meta.get_field(dynamic_model_field.name))
-            elif field_action == "update":
+            elif field_action == ActionTypeE.UPDATE.value:
                 dynamic_model_field = DynamicModelField.objects.get(pk=field_pk)
                 current_field_name = dynamic_model_field.name
                 for key, value in serializer.validated_data.items():
