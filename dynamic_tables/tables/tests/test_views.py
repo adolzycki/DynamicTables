@@ -1,4 +1,5 @@
 import json
+from threading import Thread
 
 from django.apps import apps
 from django.db import connection, models
@@ -12,7 +13,9 @@ from tables.models import DynamicModel, DynamicModelField
 class DynamicModelViewTestCase(APITestCase):
 
     def setUp(self):
-        self.DynamicModel, self.dynamic_model = self._construct_model()
+        self.dynamic_model, self.field_1, self.field_2, self.field_3, self.CustomModel = self._construct_model(
+            "DynamicModel2"
+        )
         self.urls = {
             "create_table": reverse("api:table-list"),
             "get_table_data": reverse("api:table-rows", (self.dynamic_model.pk,)),
@@ -20,28 +23,28 @@ class DynamicModelViewTestCase(APITestCase):
             "edit_table": reverse("api:table-edit", (self.dynamic_model.pk,)),
         }
 
-    def _construct_model(self):
-        dynamic_model = DynamicModel.objects.create(name="DynamicModel2")
-        DynamicModelField.objects.create(
+    def _construct_model(self, model_name):
+        dynamic_model = DynamicModel.objects.create(name=model_name)
+        field_1 = DynamicModelField.objects.create(
             dynamic_model=dynamic_model,
             name="field_1",
             type=DynamicModelField.DynamicModelFieldType.STRING.value,
             allow_null=False,
             allow_blank=False,
         )
-        DynamicModelField.objects.create(
+        field_2 = DynamicModelField.objects.create(
             dynamic_model=dynamic_model, name="field_2", type=DynamicModelField.DynamicModelFieldType.BOOLEAN.value
         )
-        DynamicModelField.objects.create(
+        field_3 = DynamicModelField.objects.create(
             dynamic_model=dynamic_model,
             name="field_3",
             type=DynamicModelField.DynamicModelFieldType.NUMBER.value,
             allow_blank=False,
         )
-        Model = construct_dynamic_model(dynamic_model)
+        CustomModel = construct_dynamic_model(dynamic_model)
         with connection.schema_editor() as schema_editor:
-            schema_editor.create_model(Model)
-        return Model, dynamic_model
+            schema_editor.create_model(CustomModel)
+        return dynamic_model, field_1, field_2, field_3, CustomModel
 
     def test_create_success(self):
         self.assertEqual(DynamicModel.objects.count(), 1)
@@ -125,9 +128,9 @@ class DynamicModelViewTestCase(APITestCase):
         self.assertEqual(response.json(), [])
 
     def test_get_table_data_success_with_data(self):
-        self.DynamicModel.objects.create(field_1="Test1", field_2="False", field_3=1)
-        self.DynamicModel.objects.create(field_1="Test2", field_2="False", field_3=2)
-        self.DynamicModel.objects.create(field_1="Test3", field_2="False", field_3=3)
+        self.CustomModel.objects.create(field_1="Test1", field_2="False", field_3=1)
+        self.CustomModel.objects.create(field_1="Test2", field_2="False", field_3=2)
+        self.CustomModel.objects.create(field_1="Test3", field_2="False", field_3=3)
 
         expected_data = [
             {"field_1": "Test1", "field_2": False, "field_3": 1.0, "id": 1},
@@ -187,3 +190,129 @@ class DynamicModelViewTestCase(APITestCase):
         self.assertEqual(response.json()["field_1"][0], "This field is required.")
         DynamicModel = apps.get_model("tables", "DynamicModel2")
         self.assertEqual(DynamicModel.objects.count(), 0)
+
+    def test_edit_field_name_success(self):
+        data = {
+            "id": self.field_3.id,
+            "action": "update",
+            "name": "name_3",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.field_3.refresh_from_db()
+        self.assertEqual(self.field_3.name, data["name"])
+        DynamicModel = apps.get_model("tables", "DynamicModel2")
+        fields = DynamicModel._meta.get_fields()
+        self.assertTrue(any(isinstance(field, models.FloatField) and field.name == data["name"] for field in fields))
+
+    def test_edit_field_name_incorrect_id_on_update(self):
+        _, field_1, _, _, _ = self._construct_model("DynamicModel3")
+        data = {
+            "id": field_1.id,
+            "action": "update",
+            "name": "name_3",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()[0], "Field with this id does not exists for this model.")
+
+    def test_edit_field_missing_id(self):
+        data = {
+            "action": "update",
+            "name": "name_3",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["non_field_errors"][0], "Id is required for update or delete")
+
+    def test_field_name_incorrect_id_on_delete(self):
+        _, field_1, _, _, _ = self._construct_model("DynamicModel3")
+        data = {
+            "id": field_1.id,
+            "action": "delete",
+            "name": "name_3",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()[0], "Field with this id does not exists for this model.")
+
+    def test_delete_field(self):
+        data = {
+            "id": self.field_3.id,
+            "action": "delete",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        DynamicModel = construct_dynamic_model(self.dynamic_model)
+        fields = DynamicModel._meta.get_fields()
+        instance = DynamicModel()
+        setattr(instance, self.field_3.name, "Test")
+        instance.save()
+        instance_new = DynamicModel.objects.get(id=instance.pk)
+        self.assertFalse(any(isinstance(field, models.FloatField) for field in fields))
+        with self.assertRaises(AttributeError):
+            getattr(instance_new, self.field_3.name)
+
+    def test_delete_field_missing_id(self):
+        data = {
+            "action": "delete",
+            "name": "name_3",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["non_field_errors"][0], "Id is required for update or delete")
+
+    def test_create_field_missing_type(self):
+        data = {"action": "create", "name": "Test_1"}
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["non_field_errors"][0], "Name and type is required for create")
+
+    def test_create_field_missing_name(self):
+        data = {"action": "create", "type": "string"}
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["non_field_errors"][0], "Name and type is required for create")
+
+    def test_create_field_string(self):
+        data = {
+            "id": 1,
+            "action": "create",
+            "type": "string",
+            "name": "Test_1",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        DynamicModel = construct_dynamic_model(self.dynamic_model)
+        instance = DynamicModel()
+        setattr(instance, data["name"], "New_name")
+        instance.save()
+        instance_new = DynamicModel.objects.get(id=instance.pk)
+        self.assertEqual(instance_new.Test_1, "New_name")
+
+    def test_create_field_number(self):
+        data = {
+            "id": 1,
+            "action": "create",
+            "type": "number",
+            "name": "Test_1",
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        DynamicModel = construct_dynamic_model(self.dynamic_model)
+        instance = DynamicModel()
+        setattr(instance, data["name"], 32)
+        instance.save()
+        instance_new = DynamicModel.objects.get(id=instance.pk)
+        self.assertEqual(instance_new.Test_1, 32.0)
+
+    def test_create_field_already_exists(self):
+        data = {
+            "id": 1,
+            "action": "create",
+            "type": "boolean",
+            "name": self.field_3.name,
+        }
+        response = self.client.put(self.urls["edit_table"], data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()[0], "Field with this name already exists in this model.")

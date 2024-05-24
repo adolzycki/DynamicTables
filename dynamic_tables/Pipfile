@@ -12,6 +12,7 @@ markdown = "*"
 black = "*"
 django-extensions = "*"
 ipython = "*"
+coverage = "*"
 
 [dev-packages]
 
